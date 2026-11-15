@@ -15,14 +15,8 @@ jobs:
 
       - name: Unzip Project File
         run: |
-          unzip -o "*.zip" || [ $? -eq 1 ]
-          # জিপের ভেতরে মূল ফোল্ডার থাকলে ফাইলগুলো বাইরে নিয়ে আসবে
-          if [ ! -f "package.json" ] && [ ! -f "gradlew" ] && [ ! -f "index.html" ]; then
-            SUBDIR=$(find . -maxdepth 2 \( -name "package.json" -o -name "gradlew" -o -name "index.html" \) -printf "%h\n" | head -n 1)
-            if [ -n "$SUBDIR" ]; then
-              cp -r "$SUBDIR"/* .
-            fi
-          fi
+          mkdir -p extracted_project
+          unzip -o "*.zip" -d extracted_project || [ $? -eq 1 ]
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -35,8 +29,19 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Convert Web/React to Android (If gradlew missing)
+      - name: Convert Web/React to Android
         run: |
+          # জিপের ভেতরে যেখানে package.json বা index.html আছে সেই আসল ফোল্ডারটি খুঁজে বের করা
+          TARGET_FILE=$(find extracted_project -name "package.json" -o -name "gradlew" -o -name "index.html" | head -n 1)
+          if [ -z "$TARGET_FILE" ]; then
+            echo "Error: জিপ ফাইলের ভেতরে কোনো প্রজেক্ট ফাইল (index.html বা package.json) পাওয়া যায়নি!"
+            ls -laR extracted_project
+            exit 1
+          fi
+          PROJECT_DIR=$(dirname "$TARGET_FILE")
+          echo "Project found in: $PROJECT_DIR"
+          cp -r "$PROJECT_DIR"/* .
+
           if [ ! -f "gradlew" ]; then
             if [ -f "package.json" ]; then
               npm install
